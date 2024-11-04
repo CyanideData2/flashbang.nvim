@@ -4,25 +4,25 @@ local sound = require("flashbang.sound")
 local Flashbang = {}
 
 function Flashbang.setup(opts)
-    _G.Flashbang.config = config.setup(opts)
+    Flashbang.config = config.setup(opts)
 
     sound.detect_provider()
 
-    local min_interval = _G.Flashbang.config.min_interval * 1000 * 60
-    local max_interval = _G.Flashbang.config.max_interval * 1000 * 60
-    local duration = _G.Flashbang.config.duration * 1000
+    local min_interval = Flashbang.config.min_interval * 1000 * 60
+    local max_interval = Flashbang.config.max_interval * 1000 * 60
+    local duration = Flashbang.config.duration * 1000
 
     local function deploy()
         sound.play("flashbang")
-        local timer = vim.loop.new_timer()
+        local deployTimer = vim.loop.new_timer()
         local current = vim.g.colors_name
-        timer:start(
+        deployTimer:start(
             1300,
             0,
             vim.schedule_wrap(function()
                 vim.cmd("colorscheme delek")
                 vim.cmd("set background=light")
-                timer:start(
+                deployTimer:start(
                     duration,
                     0,
                     vim.schedule_wrap(function()
@@ -37,6 +37,9 @@ function Flashbang.setup(opts)
 
     local timer = vim.loop.new_timer()
     local function recurring_deploy()
+        if timer == nil then
+            return
+        end
         timer:start(
             math.random(min_interval, max_interval),
             0,
@@ -46,9 +49,18 @@ function Flashbang.setup(opts)
             end)
         )
     end
+
+    -- vim.api.nvim_create_autocmd("VimLeavePre", {
+    --     desc = "Close sound timers on exit",
+    --     callback = function()
+    --         if timer ~= nil then
+    --             timer:stop()
+    --         end
+    --     end,
+    -- })
     recurring_deploy()
 end
 
-_G.Flashbang = Flashbang
+Flashbang = Flashbang
 
-return _G.Flashbang
+return Flashbang
