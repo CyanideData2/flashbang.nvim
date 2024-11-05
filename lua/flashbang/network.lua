@@ -3,21 +3,6 @@ local config = require("flashbang.config")
 
 local Network = {}
 
-local function dump(o)
-    if type(o) == "table" then
-        local s = "{ "
-        for k, v in pairs(o) do
-            if type(k) ~= "number" then
-                k = '"' .. k .. '"'
-            end
-            s = s .. "[" .. k .. "] = " .. dump(v) .. ","
-        end
-        return s .. "} "
-    else
-        return tostring(o)
-    end
-end
-
 function Network.getFlash()
     local request =
         curl.get(config.options.endpoint .. "/get_unread?username=" .. config.options.username)
@@ -35,9 +20,7 @@ function Network.sendFlash(receiver, message)
             .. "&message="
             .. message
     )
-    -- print(dump(request.body))
-    -- local data = vim.json.decode(request.body)
-    -- return data
+    return request.body
 end
 
 function Network.register()
@@ -48,6 +31,7 @@ function Network.register()
             .. "&displayname="
             .. config.options.displayname
     )
+    return request.body
 end
 
 return Network

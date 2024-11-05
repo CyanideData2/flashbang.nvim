@@ -1,6 +1,7 @@
 local config = require("flashbang.config")
 local sound = require("flashbang.sound")
 local network = require("flashbang.network")
+
 local function dump(o)
     if type(o) == "table" then
         local s = "{ "
@@ -27,7 +28,7 @@ local function setupApi()
     vim.api.nvim_create_user_command(
         "FlashMessage", -- string
         function(args)
-            vim.ui.input({}, function(message)
+            vim.ui.input({ prompt = "Message to Target: " }, function(message)
                 network.sendFlash(args.args, message)
             end)
         end, -- string or Lua function
@@ -42,7 +43,7 @@ local function pullPin()
         sound.play("flashbang")
         local deployTimer = vim.loop.new_timer()
         local current = vim.g.colors_name
-        vim.notify(grenade.message)
+        vim.notify(grenade.displayname .. ": " .. grenade.message)
         if deployTimer ~= nil then
             return deployTimer:start(
                 1300,
@@ -67,8 +68,9 @@ local function pullPin()
     local function deployIfFlashed()
         local isFlashed = network.getFlash()
         local flashList = isFlashed.messages
-        for i in pairs(flashList) do
-            deploy(i)
+        for _, j in pairs(flashList) do
+            print(dump(j))
+            deploy(j)
         end
     end
 
