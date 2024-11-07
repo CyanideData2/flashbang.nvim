@@ -11,6 +11,7 @@ config.options = {
     displayname = "",
     endpoint = "",
     defaultMessage = "",
+    autoCompleteInactive = false,
 }
 
 ---@private

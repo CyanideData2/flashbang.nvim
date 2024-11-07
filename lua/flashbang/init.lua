@@ -17,13 +17,50 @@ local function dump(o)
     end
 end
 
+---@type string[]
+local autocompletion = {
+    config.options.username,
+}
+
+local function updateCompletion()
+    local userGap = 10000
+    ---@type string[]
+    autocompletion = {}
+    local users = network.getUsers()
+    for _, v in pairs(users) do
+        table.insert(autocompletion, v.username)
+    end
+
+    local userTimer = vim.loop.new_timer()
+    local function checkCompletion()
+        if userTimer ~= nil then
+            userTimer:start(
+                userGap,
+                0,
+                vim.schedule_wrap(function()
+                    userTimer:stop()
+                    users = network.getUsers()
+                    for _, v in pairs(users) do
+                        table.insert(autocompletion, v.username)
+                    end
+                    checkCompletion()
+                end)
+            )
+        end
+    end
+end
 local function setupApi()
     vim.api.nvim_create_user_command(
         "Flash", -- string
-        function(args)
-            network.sendFlash(args.args, config.options.defaultMessage)
+        function(opts)
+            network.sendFlash(opts.args, config.options.defaultMessage)
         end, -- string or Lua function
-        { nargs = 1 }
+        {
+            nargs = 1,
+            complete = function(ArgLead, CmdLine, CursorPos)
+                return autocompletion
+            end,
+        }
     )
     vim.api.nvim_create_user_command(
         "FlashMessage", -- string
@@ -32,7 +69,12 @@ local function setupApi()
                 network.sendFlash(args.args, message)
             end)
         end, -- string or Lua function
-        { nargs = 1 }
+        {
+            nargs = 1,
+            complete = function(ArgLead, CmdLine, CursorPos)
+                return autocompletion
+            end,
+        }
     )
 end
 
@@ -74,21 +116,22 @@ local function pullPin()
         end
     end
 
-    local timer = vim.loop.new_timer()
-
-    local function recurring_deploy()
+    local function check_grenades()
+        local timer = vim.loop.new_timer()
         if timer ~= nil then
             timer:start(
                 checkGap,
                 0,
                 vim.schedule_wrap(function()
+                    timer:stop()
+                    updateCompletion()
                     deployIfFlashed()
-                    recurring_deploy()
+                    check_grenades()
                 end)
             )
         end
     end
-    recurring_deploy()
+    check_grenades()
 end
 
 local Flashbang = {}

@@ -20,7 +20,22 @@ function Network.sendFlash(receiver, message)
             .. "&message="
             .. message
     )
+    vim.notify(request.body)
     return request.body
+end
+
+---@class user
+---@field username string
+---@field displayname string
+---@field active boolean
+
+---@return user[]
+function Network.getUsers()
+    local request = curl.get(config.options.endpoint .. "/get_users_active")
+    -- vim.notify(request.body)
+    local data = vim.json.decode(request.body)
+    ---@type user[]
+    return data.users
 end
 
 function Network.register()
