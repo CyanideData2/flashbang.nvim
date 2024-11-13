@@ -84,7 +84,15 @@ local function setupApi()
         "FlashMessage", -- string
         function(args)
             vim.ui.input({ prompt = "Message to Target: " }, function(message)
-                network.sendFlash(args.args, message)
+                local function urlEncode(str)
+                    str = string.gsub(str, "([^%w%.%- ])", function(c)
+                        return string.format("%%%02X", string.byte(c))
+                    end)
+                    str = string.gsub(str, " ", "+")
+                    return str
+                end
+
+                network.sendFlash(args.args, urlEncode(message))
             end)
         end, -- string or Lua function
         {
