@@ -1,7 +1,5 @@
-flashbang :> (but online)
-Fork of Flashbang.Nvim
+flashbang :>
 
 To-Do
 
 - [ ] Set type annotations
-- [ ] Url encoding
