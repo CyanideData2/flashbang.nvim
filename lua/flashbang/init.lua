@@ -1,35 +1,16 @@
 local config = require("flashbang.config")
 local sound = require("flashbang.sound")
 local network = require("flashbang.network")
-
-local function dump(o)
-    if type(o) == "table" then
-        local s = "{ "
-        for k, v in pairs(o) do
-            if type(k) ~= "number" then
-                k = '"' .. k .. '"'
-            end
-            s = s .. "[" .. k .. "] = " .. dump(v) .. ","
-        end
-        return s .. "} "
-    else
-        return tostring(o)
-    end
-end
+local Job = require("plenary.job")
+local debugPrint = require("flashbang.debug")
 
 ---@type string[]
 local autocompletion = {
     config.options.username,
 }
 
-local function updateCompletion()
+local function completionWatcher()
     local userGap = 10000
-    ---@type string[]
-    autocompletion = {}
-    local users = network.getUsers()
-    for _, v in pairs(users) do
-        table.insert(autocompletion, v.username)
-    end
 
     local userTimer = vim.loop.new_timer()
     local function checkCompletion()
@@ -39,16 +20,55 @@ local function updateCompletion()
                 0,
                 vim.schedule_wrap(function()
                     userTimer:stop()
-                    users = network.getUsers()
-                    for _, v in pairs(users) do
-                        table.insert(autocompletion, v.username)
-                    end
-                    checkCompletion()
+                    local updateCompletion = Job
+                        :new({
+                            command = "curl",
+                            args = { config.options.endpoint .. "/get_users_active" },
+                            on_exit = function(job_self, return_val)
+                                ---@type string[]
+                                -- debugPrint(type(job_self:result()[1]), true)
+                                autocompletion = {}
+                                local data = vim.json.decode(job_self:result()[1])
+                                for _, v in pairs(data.users) do
+                                    table.insert(autocompletion, v.username)
+                                end
+                                checkCompletion()
+                                debugPrint("autocompletion updated", false)
+                            end,
+                        })
+                        :start()
                 end)
             )
         end
     end
+
+    Job:new({
+        command = "curl",
+        args = { config.options.endpoint .. "/get_users_active" },
+        on_exit = function(job_self, return_val)
+            ---@type string[]
+            -- debugPrint(type(job_self:result()[1]), true)
+            autocompletion = {}
+            local data = vim.json.decode(job_self:result()[1])
+            for _, v in pairs(data.users) do
+                table.insert(autocompletion, v.username)
+            end
+            checkCompletion()
+            debugPrint("autocompletion updated", false)
+        end,
+    }):start()
 end
+local function filterCompletion(ArgLead, CmdLine, CursorPos)
+    ---@type string[]
+    local completion = {}
+    for k, v in pairs(autocompletion) do
+        if v:find(ArgLead) then
+            table.insert(completion, v)
+        end
+    end
+    return completion
+end
+
 local function setupApi()
     vim.api.nvim_create_user_command(
         "Flash", -- string
@@ -57,9 +77,7 @@ local function setupApi()
         end, -- string or Lua function
         {
             nargs = 1,
-            complete = function(ArgLead, CmdLine, CursorPos)
-                return autocompletion
-            end,
+            complete = filterCompletion,
         }
     )
     vim.api.nvim_create_user_command(
@@ -71,9 +89,7 @@ local function setupApi()
         end, -- string or Lua function
         {
             nargs = 1,
-            complete = function(ArgLead, CmdLine, CursorPos)
-                return autocompletion
-            end,
+            complete = filterCompletion,
         }
     )
 end
@@ -81,11 +97,12 @@ end
 local function pullPin()
     local duration = config.options.duration * 1000
     local checkGap = 2000
+
     local function deploy(grenade)
         sound.play("flashbang")
         local deployTimer = vim.loop.new_timer()
         local current = vim.g.colors_name
-        vim.notify(grenade.displayname .. ": " .. grenade.message)
+        print(grenade.displayname .. ": " .. grenade.message)
         if deployTimer ~= nil then
             return deployTimer:start(
                 1300,
@@ -108,12 +125,23 @@ local function pullPin()
     -- deploy()
 
     local function deployIfFlashed()
-        local isFlashed = network.getFlash()
-        local flashList = isFlashed.messages
-        for _, j in pairs(flashList) do
-            print(dump(j))
-            deploy(j)
-        end
+        Job
+            :new({
+                command = "curl",
+                args = {
+                    config.options.endpoint .. "/get_unread?username=" .. config.options.username,
+                },
+                on_exit = function(job_self, return_val)
+                    -- debugPrint(job_self:result())
+                    local isFlashed = vim.json.decode(job_self:result()[1])
+                    local flashList = isFlashed.messages
+                    for _, j in pairs(flashList) do
+                        deploy(j)
+                    end
+                    debugPrint("Just checked for flashes", false)
+                end,
+            })
+            :start()
     end
 
     local function check_grenades()
@@ -124,7 +152,6 @@ local function pullPin()
                 0,
                 vim.schedule_wrap(function()
                     timer:stop()
-                    updateCompletion()
                     deployIfFlashed()
                     check_grenades()
                 end)
@@ -141,6 +168,7 @@ function Flashbang.setup(opts)
     sound.detect_provider()
     network.register()
     setupApi()
+    completionWatcher()
     pullPin()
 end
 

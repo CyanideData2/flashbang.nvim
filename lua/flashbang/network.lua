@@ -1,5 +1,6 @@
-local curl = require("plenary.curl")
 local config = require("flashbang.config")
+local Job = require("plenary.job")
+local curl = require("plenary.curl")
 
 local Network = {}
 
@@ -11,17 +12,21 @@ function Network.getFlash()
 end
 
 function Network.sendFlash(receiver, message)
-    local request = curl.get(
-        config.options.endpoint
-            .. "/send?sender="
-            .. config.options.username
-            .. "&receiver="
-            .. receiver
-            .. "&message="
-            .. message
-    )
-    vim.notify(request.body)
-    return request.body
+    local updateCompletion = Job:new({
+        command = "curl",
+        args = {
+            config.options.endpoint
+                .. "/send?sender="
+                .. config.options.username
+                .. "&receiver="
+                .. receiver
+                .. "&message="
+                .. message,
+        },
+        on_exit = function(job_self, return_val)
+            print(job_self:result()[1])
+        end,
+    }):start()
 end
 
 ---@class user
@@ -30,23 +35,22 @@ end
 ---@field active boolean
 
 ---@return user[]
-function Network.getUsers()
-    local request = curl.get(config.options.endpoint .. "/get_users_active")
-    -- vim.notify(request.body)
-    local data = vim.json.decode(request.body)
-    ---@type user[]
-    return data.users
-end
+function Network.getUsers() end
 
 function Network.register()
-    local request = curl.get(
-        config.options.endpoint
-            .. "/register?username="
-            .. config.options.username
-            .. "&displayname="
-            .. config.options.displayname
-    )
-    return request.body
+    local updateCompletion = Job:new({
+        command = "curl",
+        args = {
+            config.options.endpoint
+                .. "/register?username="
+                .. config.options.username
+                .. "&displayname="
+                .. config.options.displayname,
+        },
+        on_exit = function(job_self, return_val)
+            print("Flashbang Ready")
+        end,
+    }):start()
 end
 
 return Network

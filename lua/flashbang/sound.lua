@@ -1,12 +1,19 @@
 local api = vim.api
 local fn = vim.fn
+local Job = require("plenary.job")
+-- local dbugPrint = require("flashbang.debug")
 
 local M = {}
 
 local PROVIDERS = {
     {
         exe = "ffplay",
-        cmd = { "ffplay", "-nodisp", "-autoexit", "-loglevel", "quiet" },
+        cmd = "ffplay",
+        arguments = {
+            "-nodisp",
+            "-autoexit",
+            -- "-loglevel quiet",
+        },
         ext = ".mp3",
     },
     { exe = "afplay", cmd = { "afplay" }, ext = ".mp3" },
@@ -14,9 +21,8 @@ local PROVIDERS = {
     { exe = "cvlc", cmd = { "cvlc", "--play-and-exit" }, ext = ".ogg" },
 }
 
-local sound_provider
+local sound_provider = nil
 function M.detect_provider()
-    sound_provider = nil
     for _, provider in ipairs(PROVIDERS) do
         if fn.executable(provider.exe) == 1 then
             api.nvim_echo({ { "Providing sound with " .. provider.exe .. "." } }, true, {})
@@ -45,37 +51,60 @@ function M.stop_music()
     end
 end
 
-local DIR = fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p:h:h:h") .. "/sound"
-local function sound_cmd(name)
+-- function M.play_music(name)
+--     M.stop_music()
+--     local cmd = sound_cmd(name)
+--     if not cmd then
+--         return
+--     end
+--     music_job = fn.jobstart(cmd, {
+--         on_exit = function(_, code, _)
+--             if code == 0 and music_job then
+--                 M.play_music(name)
+--             else
+--                 music_job = nil
+--             end
+--         end,
+--     })
+-- end
+--
+function M.play(name)
     if not sound_provider then
         return nil
-    end
-    local cmd = vim.deepcopy(sound_provider.cmd)
-    cmd[#cmd + 1] = ("%s/%s%s"):format(DIR, name, sound_provider.ext)
-    return cmd
-end
+    else
+        local DIR = fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p:h:h:h")
+        local soundFile = ("%s/%s%s"):format(DIR .. "/sound", name, sound_provider.ext)
 
-function M.play_music(name)
-    M.stop_music()
-    local cmd = sound_cmd(name)
-    if not cmd then
-        return
-    end
-    music_job = fn.jobstart(cmd, {
-        on_exit = function(_, code, _)
-            if code == 0 and music_job then
-                M.play_music(name)
-            else
-                music_job = nil
-            end
-        end,
-    })
-end
+        local request_arguments = {}
+        for key, value in pairs(sound_provider.arguments) do
+            table.insert(request_arguments, value)
+        end
+        table.insert(request_arguments, soundFile)
 
-function M.play(name)
-    local cmd = sound_cmd(name)
-    if cmd then
-        fn.jobstart(cmd)
+        ---@type string errors
+        local request_errors = ""
+        Job
+            :new({
+                command = sound_provider.cmd,
+                args = request_arguments,
+                on_stderr = function(error, data, self)
+                    if data ~= nil then
+                        request_errors = request_errors .. data .. "\n"
+                    end
+                end,
+                on_exit = function(self, code, signal)
+                    if request_errors ~= "" then
+                        local logFile = io.open(DIR .. "/flashbang.log", "a")
+                        if logFile ~= nil then
+                            logFile:write(
+                                os.date("!%a %b %d, %H:%M", os.time()) .. " => " .. request_errors
+                            )
+                            logFile:close()
+                        end
+                    end
+                end,
+            })
+            :start()
     end
 end
 

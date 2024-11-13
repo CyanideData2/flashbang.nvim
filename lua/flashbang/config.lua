@@ -12,6 +12,7 @@ config.options = {
     endpoint = "",
     defaultMessage = "",
     autoCompleteInactive = false,
+    debug = false,
 }
 
 ---@private
