@@ -55,7 +55,7 @@ function Network.register()
                 .. config.options.displayname,
         },
         on_exit = function(job_self, return_val)
-            print("Flashbang Ready")
+            -- print("Flashbang Ready")
         end,
     }):start()
 end

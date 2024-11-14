@@ -1,10 +1,11 @@
 local network = require("flashbang.network")
 local config = require("flashbang.config")
+local debugPrint = require("flashbang.debug")
 local Job = require("plenary.job")
 
 local api = {}
 
----@type string[]
+---@type user[]
 local autocompletion = {
     config.options.username,
 }
@@ -13,8 +14,8 @@ local function filterCompletion(ArgLead, _, _)
     ---@type string[]
     local completion = {}
     for _, v in pairs(autocompletion) do
-        if v:find(ArgLead) then
-            table.insert(completion, v)
+        if (v.active or config.options.autoCompleteInactive) and v.username:find(ArgLead) then
+            table.insert(completion, v.username)
         end
     end
     return completion
@@ -41,7 +42,7 @@ local function completionWatcher()
                                 autocompletion = {}
                                 local data = vim.json.decode(job_self:result()[1])
                                 for _, v in pairs(data.users) do
-                                    table.insert(autocompletion, v.username)
+                                    table.insert(autocompletion, v)
                                 end
                                 checkCompletion()
                                 -- debugPrint("autocompletion updated", false)
@@ -62,10 +63,10 @@ local function completionWatcher()
             autocompletion = {}
             local data = vim.json.decode(job_self:result()[1])
             for _, v in pairs(data.users) do
-                table.insert(autocompletion, v.username)
+                table.insert(autocompletion, v)
             end
             checkCompletion()
-            -- debugPrint("autocompletion updated", false)
+            debugPrint(autocompletion, true)
         end,
     }):start()
 end
