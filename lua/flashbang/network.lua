@@ -1,15 +1,18 @@
 local config = require("flashbang.config")
-local Job = require("plenary.job")
-local curl = require("plenary.curl")
 local debugPrint = require("flashbang.debug")
 
 local Network = {}
 
+local counter = 0
 function Network.getFlash()
-    local request =
-        curl.get(config.options.endpoint .. "/get_unread?username=" .. config.options.username)
-    local data = vim.json.decode(request.body)
-    return data
+    counter = counter + 1
+    local betterRequest = vim.system({
+        "curl",
+        config.options.endpoint .. "/get_unread?username=" .. config.options.username,
+    }):wait()
+    debugPrint(betterRequest.stdout .. counter, false)
+    local data = vim.json.decode(betterRequest.stdout)
+    return data.messages
 end
 
 function Network.sendFlash(receiver, message)
@@ -20,21 +23,18 @@ function Network.sendFlash(receiver, message)
         str = string.gsub(str, " ", "+")
         return str
     end
-    local updateCompletion = Job:new({
-        command = "curl",
-        args = {
-            config.options.endpoint
-                .. "/send?sender="
-                .. config.options.username
-                .. "&receiver="
-                .. receiver
-                .. "&message="
-                .. urlEncode(message),
-        },
-        on_exit = function(job_self, return_val)
-            debugPrint(job_self:result(), true)
-        end,
-    }):start()
+    local betterRequest = vim.system({
+        "curl",
+        config.options.endpoint
+            .. "/send?sender="
+            .. config.options.username
+            .. "&receiver="
+            .. receiver
+            .. "&message="
+            .. urlEncode(message),
+    }, {}, function(obj)
+        print(obj.stdout)
+    end)
 end
 
 ---@class user
@@ -43,21 +43,22 @@ end
 ---@field active boolean
 
 ---@return user[]
-function Network.getUsers() end
+function Network.getUsers()
+    local betterRequest = vim.system({ "curl", config.options.endpoint .. "/get_users_active" })
+        :wait()
+    local data = vim.json.decode(betterRequest.stdout)
+    return data.users
+end
+
 function Network.register()
-    local updateCompletion = Job:new({
-        command = "curl",
-        args = {
-            config.options.endpoint
-                .. "/register?username="
-                .. config.options.username
-                .. "&displayname="
-                .. config.options.displayname,
-        },
-        on_exit = function(job_self, return_val)
-            -- print("Flashbang Ready")
-        end,
-    }):start()
+    local betterRequest = vim.system({
+        "curl",
+        config.options.endpoint
+            .. "/register?username="
+            .. config.options.username
+            .. "&displayname="
+            .. config.options.displayname,
+    })
 end
 
 return Network

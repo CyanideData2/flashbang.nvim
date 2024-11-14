@@ -1,7 +1,6 @@
 local network = require("flashbang.network")
 local config = require("flashbang.config")
 local debugPrint = require("flashbang.debug")
-local Job = require("plenary.job")
 
 local api = {}
 
@@ -22,9 +21,19 @@ local function filterCompletion(ArgLead, _, _)
 end
 
 local function completionWatcher()
-    local userGap = 10000
+    local userGap = 3000
 
     local userTimer = vim.loop.new_timer()
+
+    local counter = 0
+    local request = coroutine.create(function()
+        while true do
+            coroutine.yield()
+            counter = counter + 1
+            debugPrint(counter, false)
+            autocompletion = network.getUsers()
+        end
+    end)
     local function checkCompletion()
         if userTimer ~= nil then
             userTimer:start(
@@ -32,43 +41,16 @@ local function completionWatcher()
                 0,
                 vim.schedule_wrap(function()
                     userTimer:stop()
-                    Job
-                        :new({
-                            command = "curl",
-                            args = { config.options.endpoint .. "/get_users_active" },
-                            on_exit = function(job_self, return_val)
-                                ---@type string[]
-                                -- debugPrint(type(job_self:result()[1]), true)
-                                autocompletion = {}
-                                local data = vim.json.decode(job_self:result()[1])
-                                for _, v in pairs(data.users) do
-                                    table.insert(autocompletion, v)
-                                end
-                                checkCompletion()
-                                -- debugPrint("autocompletion updated", false)
-                            end,
-                        })
-                        :start()
+                    if coroutine.status(request) ~= "running" then
+                        coroutine.resume(request)
+                    end
+                    checkCompletion()
                 end)
             )
         end
     end
-
-    Job:new({
-        command = "curl",
-        args = { config.options.endpoint .. "/get_users_active" },
-        on_exit = function(job_self, return_val)
-            ---@type string[]
-            -- debugPrint(type(job_self:result()[1]), true)
-            autocompletion = {}
-            local data = vim.json.decode(job_self:result()[1])
-            for _, v in pairs(data.users) do
-                table.insert(autocompletion, v)
-            end
-            checkCompletion()
-            debugPrint(autocompletion, true)
-        end,
-    }):start()
+    coroutine.resume(request)
+    checkCompletion()
 end
 
 function api.setup()

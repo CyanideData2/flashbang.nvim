@@ -1,13 +1,12 @@
 local config = require("flashbang.config")
 local sound = require("flashbang.sound")
 local network = require("flashbang.network")
-
-local Job = require("plenary.job")
+local debugPrint = require("flashbang.debug")
 
 local grenade = {}
 function grenade.pullPin()
     local duration = config.options.duration * 1000
-    local checkGap = 2000
+    local checkGap = 4000
 
     local function deploy(artifacts)
         sound.play("flashbang")
@@ -35,26 +34,17 @@ function grenade.pullPin()
     end
     -- deploy()
 
-    local function deployIfFlashed()
-        Job
-            :new({
-                command = "curl",
-                args = {
-                    config.options.endpoint .. "/get_unread?username=" .. config.options.username,
-                },
-                on_exit = function(job_self, return_val)
-                    -- debugPrint(job_self:result())
-                    local isFlashed = vim.json.decode(job_self:result()[1])
-                    local flashList = isFlashed.messages
-                    for _, j in pairs(flashList) do
-                        deploy(j)
-                    end
-                    -- debugPrint("Just checked for flashes", false)
-                end,
-            })
-            :start()
-    end
-
+    local counter = 0
+    local deployIfFlashed = coroutine.create(function()
+        while true do
+            coroutine.yield()
+            counter = counter + 1
+            local flashList = network.getFlash()
+            for _, j in pairs(flashList) do
+                deploy(j)
+            end
+        end
+    end)
     local function check_grenades()
         local timer = vim.loop.new_timer()
         if timer ~= nil then
@@ -63,12 +53,16 @@ function grenade.pullPin()
                 0,
                 vim.schedule_wrap(function()
                     timer:stop()
-                    deployIfFlashed()
+                    if coroutine.status(deployIfFlashed) ~= "running" then
+                        debugPrint(counter, false)
+                        coroutine.resume(deployIfFlashed)
+                    end
                     check_grenades()
                 end)
             )
         end
     end
+    coroutine.resume(deployIfFlashed)
     check_grenades()
 end
 

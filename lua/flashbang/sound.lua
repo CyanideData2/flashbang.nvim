@@ -1,7 +1,6 @@
 local api = vim.api
 local fn = vim.fn
-local Job = require("plenary.job")
--- local dbugPrint = require("flashbang.debug")
+local config = require("flashbang.config")
 
 local M = {}
 
@@ -51,23 +50,6 @@ function M.stop_music()
     end
 end
 
--- function M.play_music(name)
---     M.stop_music()
---     local cmd = sound_cmd(name)
---     if not cmd then
---         return
---     end
---     music_job = fn.jobstart(cmd, {
---         on_exit = function(_, code, _)
---             if code == 0 and music_job then
---                 M.play_music(name)
---             else
---                 music_job = nil
---             end
---         end,
---     })
--- end
---
 function M.play(name)
     if not sound_provider then
         return nil
@@ -75,36 +57,15 @@ function M.play(name)
         local DIR = fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p:h:h:h")
         local soundFile = ("%s/%s%s"):format(DIR .. "/sound", name, sound_provider.ext)
 
-        local request_arguments = {}
-        for key, value in pairs(sound_provider.arguments) do
-            table.insert(request_arguments, value)
-        end
-        table.insert(request_arguments, soundFile)
+        local request_command = {}
 
-        ---@type string errors
-        local request_errors = ""
-        Job
-            :new({
-                command = sound_provider.cmd,
-                args = request_arguments,
-                on_stderr = function(error, data, self)
-                    if data ~= nil then
-                        request_errors = request_errors .. data .. "\n"
-                    end
-                end,
-                on_exit = function(self, code, signal)
-                    if request_errors ~= "" then
-                        local logFile = io.open(DIR .. "/flashbang.log", "a")
-                        if logFile ~= nil then
-                            logFile:write(
-                                os.date("!%a %b %d, %H:%M", os.time()) .. " => " .. request_errors
-                            )
-                            logFile:close()
-                        end
-                    end
-                end,
-            })
-            :start()
+        table.insert(request_command, sound_provider.cmd)
+        for key, value in pairs(sound_provider.arguments) do
+            table.insert(request_command, value)
+        end
+        table.insert(request_command, soundFile)
+
+        local betterRequest = vim.system(request_command)
     end
 end
 
