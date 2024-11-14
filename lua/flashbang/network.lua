@@ -1,6 +1,7 @@
 local config = require("flashbang.config")
 local Job = require("plenary.job")
 local curl = require("plenary.curl")
+local debugPrint = require("flashbang.debug")
 
 local Network = {}
 
@@ -12,6 +13,13 @@ function Network.getFlash()
 end
 
 function Network.sendFlash(receiver, message)
+    local function urlEncode(str)
+        str = string.gsub(str, "([^%w%.%- ])", function(c)
+            return string.format("%%%02X", string.byte(c))
+        end)
+        str = string.gsub(str, " ", "+")
+        return str
+    end
     local updateCompletion = Job:new({
         command = "curl",
         args = {
@@ -21,10 +29,10 @@ function Network.sendFlash(receiver, message)
                 .. "&receiver="
                 .. receiver
                 .. "&message="
-                .. message,
+                .. urlEncode(message),
         },
         on_exit = function(job_self, return_val)
-            print(job_self:result()[1])
+            debugPrint(job_self:result(), true)
         end,
     }):start()
 end
@@ -36,7 +44,6 @@ end
 
 ---@return user[]
 function Network.getUsers() end
-
 function Network.register()
     local updateCompletion = Job:new({
         command = "curl",
