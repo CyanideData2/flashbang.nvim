@@ -35,35 +35,55 @@ function grenade.pullPin()
     -- deploy()
 
     local counter = 0
+    local function bridge(resolve, reject) end
     local deployIfFlashed = coroutine.create(function()
         while true do
             coroutine.yield()
             counter = counter + 1
-            local flashList = network.getFlash()
-            for _, j in pairs(flashList) do
-                deploy(j)
-            end
+            network.getFlash(function(messages, err)
+                if err then
+                    print("Couldn't obtain flashes from server")
+                else
+                    for _, v in pairs(messages) do
+                        deploy(v)
+                    end
+                end
+            end)
         end
     end)
-    local function check_grenades()
-        local timer = vim.loop.new_timer()
-        if timer ~= nil then
-            timer:start(
-                checkGap,
-                0,
-                vim.schedule_wrap(function()
-                    timer:stop()
-                    if coroutine.status(deployIfFlashed) ~= "running" then
-                        debugPrint(counter, false)
-                        coroutine.resume(deployIfFlashed)
-                    end
-                    check_grenades()
-                end)
-            )
+
+    local function restartCoroutine()
+        if coroutine.status(deployIfFlashed) ~= "running" then
+            debugPrint(counter, false)
+            coroutine.resume(deployIfFlashed)
         end
     end
-    coroutine.resume(deployIfFlashed)
-    check_grenades()
+
+    local peakingTimer = vim.loop.new_timer()
+    if peakingTimer ~= nil then
+        peakingTimer:start(0, checkGap, restartCoroutine)
+    end
+
+    vim.api.nvim_create_autocmd("FocusLost", {
+        desc = "Disable https requests in the background",
+        group = vim.api.nvim_create_augroup("flashbang.nvim", { clear = true }),
+        callback = function()
+            if peakingTimer ~= nil then
+                debugPrint("Not checking anymore", true)
+                peakingTimer:stop()
+            end
+        end,
+    })
+    vim.api.nvim_create_autocmd("FocusGained", {
+        desc = "Re-enable https requests on focus",
+        group = vim.api.nvim_create_augroup("kickstart-highlight-yank", { clear = true }),
+        callback = function()
+            if peakingTimer ~= nil then
+                debugPrint("checking again", true)
+                peakingTimer:start(0, checkGap, restartCoroutine)
+            end
+        end,
+    })
 end
 
 return grenade

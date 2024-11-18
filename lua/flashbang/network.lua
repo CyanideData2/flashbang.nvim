@@ -4,15 +4,25 @@ local debugPrint = require("flashbang.debug")
 local Network = {}
 
 local counter = 0
-function Network.getFlash()
+function Network.getFlash(callback)
     counter = counter + 1
-    local betterRequest = vim.system({
+    vim.system({
         "curl",
         config.options.endpoint .. "/get_unread?username=" .. config.options.username,
-    }):wait()
-    debugPrint(betterRequest.stdout .. counter, false)
-    local data = vim.json.decode(betterRequest.stdout)
-    return data.messages
+    }, {}, function(result)
+        if result.code ~= 0 then
+            callback(nil, "Error: Failed to fetch messages")
+            return
+        end
+
+        local success, data = pcall(vim.json.decode, result.stdout)
+        if not success then
+            callback(nil, "Error: Failed to parse JSON")
+            return
+        end
+
+        callback(data.messages, nil)
+    end)
 end
 
 function Network.sendFlash(receiver, message)
@@ -43,11 +53,21 @@ end
 ---@field active boolean
 
 ---@return user[]
-function Network.getUsers()
-    local betterRequest = vim.system({ "curl", config.options.endpoint .. "/get_users_active" })
-        :wait()
-    local data = vim.json.decode(betterRequest.stdout)
-    return data.users
+function Network.getUsers(callback)
+    vim.system({ "curl", config.options.endpoint .. "/get_users_active" }, {}, function(result)
+        if result.code ~= 0 then
+            callback(nil, "Error: Failed to fetch messages")
+            return
+        end
+
+        local success, data = pcall(vim.json.decode, result.stdout)
+        if not success then
+            callback(nil, "Error: Failed to parse JSON")
+            return
+        end
+
+        callback(data.users, nil)
+    end)
 end
 
 function Network.register()
