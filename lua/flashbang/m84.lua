@@ -8,13 +8,14 @@ function grenade.pullPin()
     local duration = config.options.duration * 1000
     local checkGap = 4000
 
+    local deployTimer = vim.loop.new_timer()
+    ---@param artifacts flashbang
     local function deploy(artifacts)
-        sound.play("flashbang")
-        local deployTimer = vim.loop.new_timer()
-        local current = vim.g.colors_name
-        print(artifacts.displayname .. ": " .. artifacts.message)
         if deployTimer ~= nil then
-            return deployTimer:start(
+            sound.play("flashbang")
+            local current = vim.g.colors_name
+            print(artifacts.displayname .. ": " .. artifacts.message)
+            deployTimer:start(
                 1300,
                 0,
                 vim.schedule_wrap(function()
@@ -34,15 +35,13 @@ function grenade.pullPin()
     end
     -- deploy()
 
-    local counter = 0
     local function bridge(resolve, reject) end
     local deployIfFlashed = coroutine.create(function()
         while true do
             coroutine.yield()
-            counter = counter + 1
             network.getFlash(function(messages, err)
                 if err then
-                    print("Couldn't obtain flashes from server")
+                    debugPrint(err)
                 else
                     for _, v in pairs(messages) do
                         deploy(v)
@@ -54,7 +53,6 @@ function grenade.pullPin()
 
     local function restartCoroutine()
         if coroutine.status(deployIfFlashed) ~= "running" then
-            debugPrint(counter, false)
             coroutine.resume(deployIfFlashed)
         end
     end
@@ -69,7 +67,7 @@ function grenade.pullPin()
         group = vim.api.nvim_create_augroup("flashbang.nvim", { clear = true }),
         callback = function()
             if peakingTimer ~= nil then
-                debugPrint("Not checking anymore", true)
+                debugPrint("Not checking anymore")
                 peakingTimer:stop()
             end
         end,
@@ -79,7 +77,7 @@ function grenade.pullPin()
         group = vim.api.nvim_create_augroup("kickstart-highlight-yank", { clear = true }),
         callback = function()
             if peakingTimer ~= nil then
-                debugPrint("checking again", true)
+                debugPrint("checking again")
                 peakingTimer:start(0, checkGap, restartCoroutine)
             end
         end,

@@ -9,12 +9,22 @@ local autocompletion = {
     config.options.username,
 }
 
+---@param ArgLead string
 local function filterCompletion(ArgLead, _, _)
     ---@type string[]
     local completion = {}
-    for _, v in pairs(autocompletion) do
-        if (v.active or config.options.autoCompleteInactive) and v.username:find(ArgLead) then
-            table.insert(completion, v.username)
+    local j = string.len(ArgLead)
+    if config.options.autoCompleteInactive then
+        for _, v in pairs(autocompletion) do
+            if string.sub(v.username, 0, j) == ArgLead then
+                table.insert(completion, v.username)
+            end
+        end
+    else
+        for _, v in pairs(autocompletion) do
+            if v.active and string.sub(v.username, 0, j) == ArgLead then
+                table.insert(completion, v.username)
+            end
         end
     end
     return completion
@@ -23,40 +33,31 @@ end
 local function completionWatcher()
     local userGap = 3000
 
-    local userTimer = vim.loop.new_timer()
-
-    local counter = 0
     local request = coroutine.create(function()
         while true do
             coroutine.yield()
-            counter = counter + 1
-            debugPrint(counter, false)
             network.getUsers(function(messages, err)
                 if err then
-                    debugPrint(err, true)
+                    debugPrint(err)
                 else
                     autocompletion = messages
                 end
             end)
         end
     end)
-    local function checkCompletion()
-        if userTimer ~= nil then
-            userTimer:start(
-                userGap,
-                0,
-                vim.schedule_wrap(function()
-                    userTimer:stop()
-                    if coroutine.status(request) ~= "running" then
-                        coroutine.resume(request)
-                    end
-                    checkCompletion()
-                end)
-            )
-        end
+
+    local userTimer = vim.loop.new_timer()
+    if userTimer ~= nil then
+        userTimer:start(
+            0,
+            userGap,
+            vim.schedule_wrap(function()
+                if coroutine.status(request) ~= "running" then
+                    coroutine.resume(request)
+                end
+            end)
+        )
     end
-    coroutine.resume(request)
-    checkCompletion()
 end
 
 function api.setup()

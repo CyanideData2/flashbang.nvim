@@ -1,6 +1,6 @@
 local config = require("flashbang.config")
 
-function dump(o)
+local function dump(o)
     if type(o) == "table" then
         local s = "{ "
         for k, v in pairs(o) do
@@ -16,13 +16,7 @@ function dump(o)
 end
 
 return function(message, shouldPrint)
-    if shouldPrint ~= nil then
-        if shouldPrint then
-            print(dump(message))
-        end
-    else
-        if config.options.debug then
-            print(dump(message))
-        end
+    if config.options.debug and (shouldPrint == true or shouldPrint ~= nil) then
+        print(dump(message))
     end
 end

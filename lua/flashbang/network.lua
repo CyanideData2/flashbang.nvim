@@ -3,21 +3,26 @@ local debugPrint = require("flashbang.debug")
 
 local Network = {}
 
-local counter = 0
+---@class flashbang
+---@field message string
+---@field username string
+---@field displayname string
+
+---@param callback fun(messages: flashbang[], err: string | nil): any
 function Network.getFlash(callback)
-    counter = counter + 1
     vim.system({
         "curl",
         config.options.endpoint .. "/get_unread?username=" .. config.options.username,
     }, {}, function(result)
         if result.code ~= 0 then
-            callback(nil, "Error: Failed to fetch messages")
+            callback({}, "Error: Failed to fetch messages")
             return
         end
 
+        ---@type boolean, {messages: flashbang[]}
         local success, data = pcall(vim.json.decode, result.stdout)
         if not success then
-            callback(nil, "Error: Failed to parse JSON")
+            callback({}, "Error: Failed to parse JSON")
             return
         end
 
@@ -42,8 +47,12 @@ function Network.sendFlash(receiver, message)
             .. receiver
             .. "&message="
             .. urlEncode(message),
-    }, {}, function(obj)
-        print(obj.stdout)
+    }, {}, function(result)
+        if result.code ~= 0 then
+            print("Error: Couldn't send a flashbang -> " .. result.stderr)
+            return
+        end
+        print(result.stdout)
     end)
 end
 
@@ -52,33 +61,42 @@ end
 ---@field displayname string
 ---@field active boolean
 
----@return user[]
+---@param callback fun(messages: user[], err: string | nil): any
 function Network.getUsers(callback)
     vim.system({ "curl", config.options.endpoint .. "/get_users_active" }, {}, function(result)
         if result.code ~= 0 then
-            callback(nil, "Error: Failed to fetch messages")
+            callback({}, "Error: Failed to fetch messages")
             return
         end
 
+        ---@type boolean, {users: user[]}
         local success, data = pcall(vim.json.decode, result.stdout)
         if not success then
-            callback(nil, "Error: Failed to parse JSON")
+            callback({}, "Error: Failed to parse JSON")
             return
         end
 
-        callback(data.users, nil)
+        ---@type user[]
+        local users = data.users
+        callback(users, nil)
     end)
 end
 
 function Network.register()
-    local betterRequest = vim.system({
+    vim.system({
         "curl",
         config.options.endpoint
             .. "/register?username="
             .. config.options.username
             .. "&displayname="
             .. config.options.displayname,
-    })
+    }, {}, function(result)
+        if result.code ~= 0 then
+            debugPrint("Error: Failed to log in", true)
+            return
+        end
+        debugPrint("Logged into Flashbang.nvim", true)
+    end)
 end
 
 return Network
